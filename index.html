@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpazaWatch SA</title>
+    <style>
+        /* CSS - Making it look like an App */
+        :root {
+            --primary: #007f5f; /* Green for food safety */
+            --danger: #d00000; /* Red for danger */
+            --warning: #ffb703; /* Yellow for caution */
+            --bg: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .app-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h1 { text-align: center; color: var(--primary); }
+        .tab-buttons { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        button {
+            flex: 1;
+            padding: 12px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-report { background-color: var(--danger); color: white; }
+        .btn-view { background-color: var(--primary); color: white; }
+        
+        /* Form Styling */
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box; 
+        }
+        .location-btn {
+            background-color: #eee;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        /* List Styling */
+        .shop-card {
+            border-left: 5px solid #ccc;
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .card-red { border-left-color: var(--danger); background-color: #fff5f5; }
+        .card-orange { border-left-color: var(--warning); }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            color: white;
+            margin-top: 5px;
+        }
+        .badge-repeat { background-color: var(--danger); }
+        .badge-new { background-color: var(--primary); }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>🇿🇦 SpazaWatch</h1>
+    
+    <!-- Navigation -->
+    <div class="tab-buttons">
+        <button class="btn-report" onclick="showSection('report')">Report Incident</button>
+        <button class="btn-view" onclick="showSection('view')">View Database</button>
+    </div>
+
+    <!-- REPORT SECTION -->
+    <div id="report-section">
+        <h3>Report Expired Goods</h3>
+        <input type="text" id="shopName" placeholder="Spaza Shop Name (e.g. Mama's Store)">
+        <button class="location-btn" onclick="getGPS()">📍 Use My GPS Location</button>
+        <p id="gps-status" style="font-size: 12px; color: gray;"></p>
+        
+        <input type="text" id="productName" placeholder="Product (e.g. Milk, Bread)">
+        <label>Expiry Date on Packaging:</label>
+        <input type="date" id="expiryDate">
+        
+        <button class="btn-report" onclick="submitReport()">Submit Report</button>
+    </div>
+
+    <!-- VIEW SECTION -->
+    <div id="view-section" class="hidden">
+        <h3>Community Watchlist</h3>
+        <input type="text" id="searchBar" onkeyup="filterShops()" placeholder="Search Shop Name...">
+        <div id="shop-list">
+            <!-- Shops will appear here -->
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // 1. DATABASE SIMULATION (In a real app, this would be a cloud database)
+    let reports = [
+        { name: "Jabu's Tuckshop", location: "Soweto", product: "Polony", daysExpired: 5, repeat: false },
+        { name: "Corner Market", location: "Cape Town", product: "Baby Formula", daysExpired: 20, repeat: true },
+        { name: "Super Save", location: "Durban", product: "Bread", daysExpired: 2, repeat: false }
+    ];
+
+    let currentLocation = "Unknown Location";
+
+    // 2. SHOW/HIDE TABS
+    function showSection(section) {
+        document.getElementById('report-section').classList.add('hidden');
+        document.getElementById('view-section').classList.add('hidden');
+        document.getElementById(section + '-section').classList.remove('hidden');
+        if(section === 'view') renderList();
+    }
+
+    // 3. GET GPS LOCATION
+    function getGPS() {
+        const status = document.getElementById('gps-status');
+        if (!navigator.geolocation) {
+            status.textContent = "Geolocation is not supported by your browser";
+        } else {
+            status.textContent = "Locating...";
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude.toFixed(4);
+                    const long = position.coords.longitude.toFixed(4);
+                    currentLocation = `Lat: ${lat}, Long: ${long}`;
+                    status.textContent = "Location found: " + currentLocation;
+                    // Auto-fill name input with coords if name is empty
+                    if(document.getElementById('shopName').value === "") {
+                        document.getElementById('shopName').value = "Shop at " + currentLocation;
+                    }
+                },
+                () => { status.textContent = "Unable to retrieve your location"; }
+            );
+        }
+    }
+
+    // 4. SUBMIT REPORT LOGIC
+    function submitReport() {
+        const name = document.getElementById('shopName').value;
+        const product = document.getElementById('productName').value;
+        const expiryInput = document.getElementById('expiryDate').value;
+
+        if(!name || !product || !expiryInput) {
+            alert("Please fill in all fields");
+            return;
+        }
+
+        // Calculate Days Expired
+        const expiryDate = new Date(expiryInput);
+        const today = new Date();
+        const diffTime = Math.abs(today - expiryDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        // Simple logic: If input date is in past, it's expired
+        let daysExpired = 0;
+        if(expiryDate < today) {
+            daysExpired = diffDays;
+        } else {
+            alert("This product is not expired yet.");
+            return;
+        }
+
+        // Check if Repeat Offender (Does this name exist in our list already?)
+        let isRepeat = reports.some(shop => shop.name.toLowerCase() === name.toLowerCase());
+
+        // Add to Database
+        reports.unshift({
+            name: name,
+            location: currentLocation,
+            product: product,
+            daysExpired: daysExpired,
+            repeat: isRepeat
+        });
+
+        alert("Report Submitted! Thank you for keeping the community safe.");
+        
+        // Reset Form
+        document.getElementById('shopName').value = '';
+        document.getElementById('productName').value = '';
+        showSection('view');
+    }
+
+    // 5. RENDER LIST (Consumer/Gov View)
+    function renderList() {
+        const list = document.getElementById('shop-list');
+        list.innerHTML = ""; // Clear current list
+
+        reports.forEach(report => {
+            const isRepeat = report.repeat;
+            const cardClass = isRepeat ? 'card-red' : 'card-orange';
+            const badge = isRepeat 
+                ? '<span class="badge badge-repeat">REPEAT OFFENDER</span>' 
+                : '<span class="badge badge-new">INCIDENT REPORTED</span>';
+
+            const html = `
+                <div class="shop-card ${cardClass}">
+                    <strong>${report.name}</strong> <br>
+                    <small>📍 ${report.location}</small>
+                    <hr style="opacity:0.2">
+                    <div>Product: <b>${report.product}</b></div>
+                    <div style="color:red">Expired by: ${report.daysExpired} days</div>
+                    ${badge}
+                </div>
+            `;
+            list.innerHTML += html;
+        });
+    }
+
+    // 6. SEARCH FUNCTION
+    function filterShops() {
+        const input = document.getElementById('searchBar').value.toLowerCase();
+        const cards = document.getElementsByClassName('shop-card');
+
+        for (let i = 0; i < cards.length; i++) {
+            const text = cards[i].innerText.toLowerCase();
+            cards[i].style.display = text.includes(input) ? "" : "none";
+        }
+    }
+</script>
+
+</body>
+</html>
